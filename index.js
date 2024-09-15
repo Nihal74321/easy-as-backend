@@ -9,11 +9,11 @@ const URI = process.env.MONGO_URI;
 const PORT = process.env.PORT_NUMBER;
 const DB = process.env.DB;
 const COL_TUT = process.env.COLLECTION_TUTORS;
-const COL_STU = process.env.COLLECTION_STUDENTS;
+const COL_USER = process.env.COLLECTION_USER;
 const COL_BK = process.env.COLLECTION_BOOK;
 
 
-let db,col_tut, col_stu, col_bk;
+let db,col_tut, col_user, col_bk;
 
 app.use(cors());
 app.use(express.json());
@@ -23,7 +23,7 @@ MongoClient.connect(URI).then(async (client) => {
     console.log('Successfully connected to MongoDB');
     db = client.db(DB);
     col_tut = db.collection(COL_TUT);
-    col_stu = db.collection(COL_STU);
+    col_user = db.collection(COL_USER);
     col_bk = db.collection(COL_BK);
 }).catch((err) => console.error(err));
 
@@ -53,55 +53,63 @@ app.post('/booking', async(req,res) => {
         res.status(500).json({error: "Something went wrong, but that's on us. Sorry lol."})
     }
 })
-// //u
-// app.put('/items/:id', async (req, res) => {
-//     try {
-//         const { id } = req.params;
-//         const update = req.body;
+app.get('/get-bookings', async(req, res) => {
+    try {
+        const bookings = await col_bk.find().toArray();
+        return res.status(200).json(bookings)
+    }
+    catch(e) {
+        console.log("Internal Server Error: " + e)
+        res.status(500).json({error: "Something went wrong, but that's on us. Sorry lol."})
+    }
+})
+app.get('/settings', async(req, res) => {
+    try{
+        const settings = await col_user.findOne(); //in production, there is only one user. In real application, this would instead look for find({_id: id}) (passed through params)
+        return res.status(200).json(settings);
+    } catch(e) {
+        console.error("Something went wrong " + e);
+        res.status(500).json({error: "Something went wrong internally"});
+    }
+})
 
-//         // Validate the ObjectId format
-//         if (!ObjectId.isValid(id)) {
-//             return res.status(400).json({ error: "Invalid ID format" });
-//         } else {
-//             console.log(id);
-//         }
+app.put('/user/:id', async(req, res) => {
+    try {
+        const { id } = req.params;
 
-//         // Validate that the update contains a name
-//         if (!update.name) {
-//             return res.status(400).json({ error: "Update request is invalid. Name is required." });
-//         } else {
-//             console.log(update);
-//         }
+        if (!ObjectId.isValid(id)) {
+            return res.status(400).json({ error: 'Invalid user ID format' });
+        }
+        const { user } = req.body;
 
-//         // Perform the update
-//         const result = await col.updateOne({_id : new ObjectId(id)}, {$set: {name: update.name}});
+        const event = await col_user.updateOne({_id: new ObjectId(id)} , {$set: {
+            "user.first" : user.first,
+            "user.last" : user.last
+        }});
 
-//         if(!result) {
-//             return res.status(400).json({UpdateError: "Unable to fulfill update request"})
-//         }
+        if(event.matchedCount === 0) {
+            return res.status(400).json({error: "User not found. Please try again"})
+        }
+        res.status(200).json({message : "User updated successfully!"});
+    } catch(e) {
+        console.log("Internal Server Error " + e);
+        res.status(500).json({error: "Something went wrong, but its on us. Sorry lol"});
+    }
+});
+app.delete('/bookings/:id', async(req, res) => {
+    try{
+        const {id} = req.params;
+        const result = await col_bk.deleteOne({_id : new ObjectId(id)});
 
-//         res.status(200).json(result.value);
-//     } catch (err) {
-//         console.error("Error updating item:", err);
-//         res.status(500).json({ error: "Server failed to respond. Please try again later!" });
-//     }
-// });
-
-// //d
-// app.delete('/items/:id', async(req, res) => {
-//     try {
-//         const { id } = req.params;
-//         const result = await col.deleteOne({_id: new ObjectId(id)});
-
-//         if(result.deletedCount === 0) {
-//             return res.status(400).json({error: "Unable to satisfy Delete request.. Please try again later"});
-//         }
-//         res.status(200).json({message: "Successfully deleted entry"});
-//     }catch(err) {
-//         console.error("Something went wrong.. Please try again later.")
-//         res.status(500).json({error: "Error fulfilling deletion request"});
-//     }
-// })
+        if(result.deletedCount === 0) {
+            return res.status(400).json({error : "Unable to satisy Delete reques"});
+        }
+        res.status(200).json({message: "Successfully deleted entry"});
+    } catch(e) {
+        console.log("Something went wrong internally " + e)
+        res.status(500).json({error: "Something went wrong, but that's on us. Sorry lol."})
+    }
+})
 
 app.listen(PORT, () => {
     console.log(`App is listening to PORT: ${PORT}`);
