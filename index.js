@@ -96,6 +96,40 @@ app.put('/user/:id', async(req, res) => {
         res.status(500).json({error: "Something went wrong, but its on us. Sorry lol"});
     }
 });
+
+app.put('/update-book/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        if (!ObjectId.isValid(id)) {
+            return res.status(400).json({ error: "Invalid ID. Either it doesn't exist, or the format is wrong!" });
+        }
+
+        const { name } = req.body;
+
+        if (!name) {
+            return res.status(400).json({ error: "Name is required for update." });
+        }
+
+        const booking_change = await col_bk.updateOne(
+            { _id: new ObjectId(id) },
+            { $set: { "tutor.name": name } }
+        );
+
+        if (booking_change.matchedCount === 0) {
+            return res.status(404).json({ error: "Booking not found or no changes made." });
+        }
+
+        if (booking_change.modifiedCount === 0) {
+            return res.status(304).json({ message: "No changes were made." });
+        }
+
+        res.status(200).json({ message: "Booking updated successfully." });
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: "Internal Server Error." });
+    }
+});
 app.delete('/bookings/:id', async(req, res) => {
     try{
         const {id} = req.params;
